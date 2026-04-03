@@ -4,6 +4,8 @@ import { getInvoices, createInvoice, getInvoiceByOrderId, sendWhatsapp } from '.
 const router = express.Router();
 router.route('/').get(getInvoices).post(createInvoice);
 router.route('/order/:orderId').get(getInvoiceByOrderId);
-router.route('/:invoiceId/send-whatsapp').post(sendWhatsapp);
+
+router.route('/create-invoice').post(createInvoice);
+router.route('/send-whatsapp').post(sendWhatsapp);
 
 export default router;
