@@ -1,18 +1,10 @@
-const express = require("express");
+import express from 'express';
+import { getOrders, createOrder, getOrderById, updateOrderStatus, deleteOrder } from '../controllers/orderController.js';
+
 const router = express.Router();
 
-const {
-  createOrder,
-  getAllOrders,
-  getOrderById,
-  updateOrderStatus,
-  deleteOrder,
-} = require("../controllers/orderController");
+router.route('/').get(getOrders).post(createOrder);
+router.route('/:id').get(getOrderById).delete(deleteOrder);
+router.route('/:id/status').patch(updateOrderStatus);
 
-router.post("/", createOrder);
-router.get("/", getAllOrders);
-router.get("/:id", getOrderById);
-router.patch("/:id/status", updateOrderStatus);
-router.delete("/:id", deleteOrder);
-
-module.exports = router;
+export default router;

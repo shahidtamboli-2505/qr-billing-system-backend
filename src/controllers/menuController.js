@@ -1,78 +1,41 @@
-const MenuItem = require("../models/MenuItem");
+import { supabase } from '../config/supabase.js';
 
-// GET ALL MENU ITEMS
-const getAllMenuItems = async (req, res) => {
+export const getMenuItems = async (req, res, next) => {
   try {
-    const items = await MenuItem.find().sort({ category: 1, createdAt: -1 });
-    res.status(200).json({ success: true, count: items.length, data: items });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch menu items",
-      error: error.message,
-    });
-  }
+    const { data, error } = await supabase.from('menu_items').select('*').order('category');
+    if (error) throw error;
+    res.status(200).json({ data });
+  } catch (error) { next(error); }
 };
 
-// CREATE MENU ITEM
-const createMenuItem = async (req, res) => {
+export const createMenuItem = async (req, res, next) => {
   try {
-    const item = await MenuItem.create(req.body);
-    res
-      .status(201)
-      .json({ success: true, message: "Item created", data: item });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to create item",
-      error: error.message,
-    });
-  }
+    const { name, description, price, category, image, available } = req.body;
+    const { data, error } = await supabase.from('menu_items')
+      .insert([{ name, description, price, category, image, available }])
+      .select().single();
+    if (error) throw error;
+    res.status(201).json({ data });
+  } catch (error) { next(error); }
 };
 
-// UPDATE MENU ITEM
-const updateMenuItem = async (req, res) => {
+export const updateMenuItem = async (req, res, next) => {
   try {
-    const item = await MenuItem.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-    });
-    if (!item) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Item not found" });
-    }
-    res.status(200).json({ success: true, message: "Item updated", data: item });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update item",
-      error: error.message,
-    });
-  }
+    const { id } = req.params;
+    const { data, error } = await supabase.from('menu_items')
+      .update(req.body)
+      .eq('id', id)
+      .select().single();
+    if (error) throw error;
+    res.status(200).json({ data });
+  } catch (error) { next(error); }
 };
 
-// DELETE MENU ITEM
-const deleteMenuItem = async (req, res) => {
+export const deleteMenuItem = async (req, res, next) => {
   try {
-    const item = await MenuItem.findByIdAndDelete(req.params.id);
-    if (!item) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Item not found" });
-    }
-    res.status(200).json({ success: true, message: "Item deleted" });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to delete item",
-      error: error.message,
-    });
-  }
-};
-
-module.exports = {
-  getAllMenuItems,
-  createMenuItem,
-  updateMenuItem,
-  deleteMenuItem,
+    const { id } = req.params;
+    const { error } = await supabase.from('menu_items').delete().eq('id', id);
+    if (error) throw error;
+    res.status(200).json({ success: true, message: 'Menu item deleted' });
+  } catch (error) { next(error); }
 };

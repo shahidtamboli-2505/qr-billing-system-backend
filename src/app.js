@@ -1,30 +1,48 @@
-const express = require("express");
-const cors = require("cors");
-const errorHandler = require("./middleware/errorMiddleware");
+import express from "express";
+import cors from "cors";
+import errorHandler from "./middleware/errorMiddleware.js";
 
-const orderRoutes = require("./routes/orderRoutes");
-const menuRoutes = require("./routes/menuRoutes");
-const billingRoutes = require("./routes/billingRoutes");
-const reportRoutes = require("./routes/reportRoutes");
-const tableRoutes = require("./routes/tableRoutes");
+import menuRoutes from "./routes/menuRoutes.js";
+import orderRoutes from "./routes/orderRoutes.js";
+import tableRoutes from "./routes/tableRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
+import billingRoutes from "./routes/billingRoutes.js";
 
 const app = express();
 
-app.use(cors());
+// Middleware
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
 app.use(express.json());
 
+// Root route
 app.get("/", (req, res) => {
-  res.send("🧇 Belgian Bliss Backend Running...");
+  res.send("Backend is running!");
+});
+
+// Health route
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    message: "Backend is running and routes are active!",
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // API Routes
-app.use("/api/orders", orderRoutes);
 app.use("/api/menu", menuRoutes);
-app.use("/api/billing", billingRoutes);
-app.use("/api/reports", reportRoutes);
+app.use("/api/orders", orderRoutes);
 app.use("/api/tables", tableRoutes);
+app.use("/api/reports", reportRoutes);
+app.use("/api/billing", billingRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
 
-module.exports = app;
+export default app;

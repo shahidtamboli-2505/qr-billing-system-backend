@@ -1,36 +1,23 @@
-const Order = require("../models/Order");
+import { supabase } from '../config/supabase.js';
 
-// GET ALL TABLES WITH STATUS (derived from active orders)
-const getTableStatus = async (req, res) => {
+export const getTables = async (req, res, next) => {
   try {
-    // Active = not Paid
-    const activeOrders = await Order.find({
-      orderStatus: { $ne: "Paid" },
-    }).sort({ createdAt: -1 });
+    const { data: tables, error: tableError } = await supabase.from('tables').select('*').order('table_number');
+    if (tableError) throw tableError;
 
-    const occupiedTableNumbers = [
-      ...new Set(activeOrders.map((o) => o.tableNumber)),
-    ];
+    const { data: activeOrders, error: orderError } = await supabase.from('orders')
+      .select('*')
+      .neq('status', 'completed')
+      .neq('status', 'Paid');
+    if (orderError) throw orderError;
 
-    const tables = [1, 2, 3, 4, 5].map((num) => {
-      const activeOrder = activeOrders.find((o) => o.tableNumber === num);
+    const result = tables.map(t => {
+      const activeOrder = activeOrders.find(o => String(o.table_id) === String(t.table_number));
       return {
-        tableNumber: num,
-        isOccupied: occupiedTableNumbers.includes(num),
-        orderStatus: activeOrder ? activeOrder.orderStatus : null,
-        orderId: activeOrder ? activeOrder._id : null,
-        totalAmount: activeOrder ? activeOrder.totalAmount : null,
+        ...t,
+        status: activeOrder ? 'occupied' : 'free',
       };
     });
-
-    res.status(200).json({ success: true, data: tables });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch table status",
-      error: error.message,
-    });
-  }
+    res.status(200).json({ data: result });
+  } catch (error) { next(error); }
 };
-
-module.exports = { getTableStatus };

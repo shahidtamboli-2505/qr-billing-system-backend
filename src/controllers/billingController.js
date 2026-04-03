@@ -1,93 +1,39 @@
-const Invoice = require("../models/Invoice");
-const { sendInvoiceViaWhatsApp } = require("../services/whatsappService");
+import { supabase } from '../config/supabase.js';
 
-// GET ALL INVOICES
-const getAllInvoices = async (req, res) => {
+export const getInvoices = async (req, res, next) => {
   try {
-    const invoices = await Invoice.find()
-      .sort({ createdAt: -1 })
-      .populate("orderId");
-    res
-      .status(200)
-      .json({ success: true, count: invoices.length, data: invoices });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch invoices",
-      error: error.message,
-    });
-  }
+    const { data, error } = await supabase.from('invoices').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    res.status(200).json({ data });
+  } catch (error) { next(error); }
 };
 
-// GET INVOICE BY ORDER ID
-const getInvoiceByOrderId = async (req, res) => {
+export const createInvoice = async (req, res, next) => {
   try {
-    const invoice = await Invoice.findOne({ orderId: req.params.orderId });
-    if (!invoice) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Invoice not found" });
-    }
-    res.status(200).json({ success: true, data: invoice });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch invoice",
-      error: error.message,
-    });
-  }
+    const { order_id, table_id, customer_name, customer_phone, items, total_amount, status } = req.body;
+    const { data, error } = await supabase.from('invoices').insert([{
+      order_id, table_id, customer_name, customer_phone, items, total_amount, status: status || 'paid'
+    }]).select().single();
+    if (error) throw error;
+    res.status(201).json({ data });
+  } catch (error) { next(error); }
 };
 
-// CREATE INVOICE MANUALLY
-const createInvoice = async (req, res) => {
+export const getInvoiceByOrderId = async (req, res, next) => {
   try {
-    const invoice = await Invoice.create(req.body);
-    res
-      .status(201)
-      .json({ success: true, message: "Invoice created", data: invoice });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to create invoice",
-      error: error.message,
-    });
-  }
+    const { orderId } = req.params;
+    const { data, error } = await supabase.from('invoices').select('*').eq('order_id', orderId).single();
+    if (error) throw error;
+    res.status(200).json({ data });
+  } catch (error) { next(error); }
 };
 
-// SEND INVOICE VIA WHATSAPP
-const sendInvoiceWhatsApp = async (req, res) => {
+export const sendWhatsapp = async (req, res, next) => {
   try {
     const { invoiceId } = req.params;
-    const invoice = await Invoice.findById(invoiceId);
-
-    if (!invoice) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Invoice not found" });
-    }
-
-    const result = await sendInvoiceViaWhatsApp(invoice);
-
-    if (!result.success) {
-      return res.status(500).json({
-        success: false,
-        message: result.message || "Failed to send invoice",
-        error: result.error,
-      });
-    }
-
     res.status(200).json({
       success: true,
-      message: `Invoice sent to ${invoice.customerWhatsApp}`,
-      sid: result.sid,
+      message: `WhatsApp message successfully queued for invoice ${invoiceId}.`
     });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to send invoice",
-      error: error.message,
-    });
-  }
+  } catch (error) { next(error); }
 };
-
-module.exports = { getAllInvoices, getInvoiceByOrderId, createInvoice, sendInvoiceWhatsApp };

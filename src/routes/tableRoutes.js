@@ -1,8 +1,7 @@
-const express = require("express");
+import express from 'express';
+import { getTables } from '../controllers/tableController.js';
+
 const router = express.Router();
+router.route('/').get(getTables);
 
-const { getTableStatus } = require("../controllers/tableController");
-
-router.get("/", getTableStatus);
-
-module.exports = router;
+export default router;

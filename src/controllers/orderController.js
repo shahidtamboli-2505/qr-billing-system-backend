@@ -1,192 +1,49 @@
-const Order = require("../models/Order");
-const Invoice = require("../models/Invoice");
-const { sendInvoiceViaWhatsApp } = require("../services/whatsappService");
+import { supabase } from '../config/supabase.js';
 
-const roundCurrency = (num) => {
-  const value = Number(num || 0);
-  if (Number.isNaN(value)) return 0;
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+export const getOrders = async (req, res, next) => {
+  try {
+    const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    res.status(200).json({ data });
+  } catch (error) { next(error); }
 };
 
-// CREATE ORDER
-const createOrder = async (req, res) => {
+export const createOrder = async (req, res, next) => {
   try {
-    const { tableNumber, customerWhatsApp, items, totalAmount, paymentMode } =
-      req.body;
-
-    if (
-      !tableNumber ||
-      !customerWhatsApp ||
-      !items ||
-      items.length === 0 ||
-      totalAmount === undefined ||
-      totalAmount === null
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "All required fields are required",
-      });
-    }
-
-    const computedTotal = items.reduce(
-      (sum, item) => sum + Number(item.price) * Number(item.quantity),
-      0
-    );
-    const roundedComputedTotal = roundCurrency(computedTotal);
-    const roundedTotalAmount = roundCurrency(totalAmount);
-
-    if (Math.abs(roundedComputedTotal - roundedTotalAmount) > 0.01) {
-      return res.status(400).json({
-        success: false,
-        message: "totalAmount does not match items total",
-        expectedTotal: roundedComputedTotal,
-      });
-    }
-
-    const newOrder = await Order.create({
-      tableNumber,
-      customerWhatsApp,
-      items,
-      totalAmount: roundedTotalAmount,
-      paymentMode: paymentMode || "Cash",
-      orderStatus: "Pending",
-    });
-
-    res.status(201).json({
-      success: true,
-      message: "Order placed successfully",
-      data: newOrder,
-    });
-  } catch (error) {
-    console.error("Create Order Error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to create order",
-      error: error.message,
-    });
-  }
+    const { table_id, customer_name, customer_phone, items, total_amount, status } = req.body;
+    const { data, error } = await supabase.from('orders').insert([{
+      table_id, customer_name, customer_phone, items, total_amount, status: status || 'pending'
+    }]).select().single();
+    if (error) throw error;
+    res.status(201).json({ data });
+  } catch (error) { next(error); }
 };
 
-// GET ALL ORDERS
-const getAllOrders = async (req, res) => {
+export const getOrderById = async (req, res, next) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 });
-    res.status(200).json({
-      success: true,
-      count: orders.length,
-      data: orders,
-    });
-  } catch (error) {
-    console.error("Fetch Orders Error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch orders",
-      error: error.message,
-    });
-  }
+    const { id } = req.params;
+    const { data, error } = await supabase.from('orders').select('*').eq('id', id).single();
+    if (error) throw error;
+    res.status(200).json({ data });
+  } catch (error) { next(error); }
 };
 
-// GET ORDER BY ID
-const getOrderById = async (req, res) => {
+export const updateOrderStatus = async (req, res, next) => {
   try {
-    const order = await Order.findById(req.params.id);
-    if (!order) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Order not found" });
-    }
-    res.status(200).json({ success: true, data: order });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch order",
-      error: error.message,
-    });
-  }
-};
-
-// UPDATE ORDER STATUS
-const updateOrderStatus = async (req, res) => {
-  try {
+    const { id } = req.params;
     const { status } = req.body;
-    const validStatuses = ["Pending", "Preparing", "Served", "Paid"];
-
-    if (!validStatuses.includes(status)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid status" });
-    }
-
-    const order = await Order.findByIdAndUpdate(
-      req.params.id,
-      { orderStatus: status },
-      { new: true }
-    );
-
-    if (!order) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Order not found" });
-    }
-
-    // Auto-create invoice when order is marked Paid
-    if (status === "Paid") {
-      const existingInvoice = await Invoice.findOne({ orderId: order._id });
-      if (!existingInvoice) {
-        const newInvoice = await Invoice.create({
-          orderId: order._id,
-          tableNumber: order.tableNumber,
-          customerWhatsApp: order.customerWhatsApp,
-          items: order.items,
-          totalAmount: order.totalAmount,
-          paymentMode: order.paymentMode,
-          paidAt: new Date(),
-        });
-
-        // Send invoice via WhatsApp (fire and forget)
-        sendInvoiceViaWhatsApp(newInvoice).catch((err) =>
-          console.error("WhatsApp send error:", err)
-        );
-      }
-    }
-
-    res.status(200).json({
-      success: true,
-      message: `Order status updated to ${status}`,
-      data: order,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update order status",
-      error: error.message,
-    });
-  }
+    const { data, error } = await supabase.from('orders')
+      .update({ status }).eq('id', id).select().single();
+    if (error) throw error;
+    res.status(200).json({ data });
+  } catch (error) { next(error); }
 };
 
-// DELETE ORDER
-const deleteOrder = async (req, res) => {
+export const deleteOrder = async (req, res, next) => {
   try {
-    const order = await Order.findByIdAndDelete(req.params.id);
-    if (!order) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Order not found" });
-    }
-    res.status(200).json({ success: true, message: "Order deleted" });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to delete order",
-      error: error.message,
-    });
-  }
-};
-
-module.exports = {
-  createOrder,
-  getAllOrders,
-  getOrderById,
-  updateOrderStatus,
-  deleteOrder,
+    const { id } = req.params;
+    const { error } = await supabase.from('orders').delete().eq('id', id);
+    if (error) throw error;
+    res.status(200).json({ success: true, message: 'Order deleted' });
+  } catch (error) { next(error); }
 };
